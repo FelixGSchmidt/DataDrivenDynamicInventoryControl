@@ -217,7 +217,7 @@ class WeightedSAA:
         z = self.m.addVars(n_periods, vtype='B', name='z') 
 
         # Auxiary decision variable (for cost of inventory holding or demand backlogging for each t and sample i)
-        y_i = self.m.addVars(n_samples, n_periods, vtype='C', name='y_i') 
+        s_i = self.m.addVars(n_samples, n_periods, vtype='C', name='s_i') 
 
         ## Constraints   
 
@@ -225,7 +225,7 @@ class WeightedSAA:
 
         Constraints (for each t=1...tau, i=1...n_samples, m=1...n_constraints):
         
-            A*q + B*d + C*y_i + z*D*q + E*z <= f 
+            A*q + B*d + C*s_i + z*D*q + E*z <= f 
         
         """ 
              
@@ -237,8 +237,8 @@ class WeightedSAA:
             # B * d
             gp.quicksum(B[t,s,m]*d[i,s] for s in range(n_periods)) +
 
-            # C * y_i
-            gp.quicksum(C[t,s,m]*y_i[i,s] for s in range(n_periods)) +
+            # C * s_i
+            gp.quicksum(C[t,s,m]*s_i[i,s] for s in range(n_periods)) +
 
             # z * D * q
             gp.quicksum(z[s]*D[t,s,m]*q[s] for s in range(n_periods)) +
@@ -270,8 +270,8 @@ class WeightedSAA:
                     # K * z
                     gp.quicksum(K*z[t] for t in range(n_periods)) + 
 
-                    # y_i
-                    gp.quicksum(y_i[i,t] for t in range(n_periods)) 
+                    # s_i
+                    gp.quicksum(s_i[i,t] for t in range(n_periods)) 
 
 
                 ) for i in range(n_samples)),        
@@ -603,7 +603,7 @@ class RobustWeightedSAA:
         z = self.m.addVars(n_periods, vtype='B', name='z') 
 
         # Auxiary decision variable (for cost of inventory holding or demand backlogging for each t and sample i)
-        y_i = self.m.addVars(n_samples, n_periods, vtype='C', name='y_i') 
+        s_i = self.m.addVars(n_samples, n_periods, vtype='C', name='s_i') 
 
         # Auxiary decision variable (from reformulation of robust constraints)
         Lambda_i = self.m.addVars(n_samples, n_periods, n_periods, n_constraints, 
@@ -620,32 +620,32 @@ class RobustWeightedSAA:
 
         Constraints (for each t=1...tau, i=1...n_samples, m=1...n_constraints):
         
-            A*q + B*d + C*y_i + z*D*q + E*z + Lambda_i*d + epsilon*||B + Lambda_i||_2 <= f
+            A*q + B*d + C*s_i + z*D*q + E*z + Lambda_i*d + epsilon*||B + Lambda_i||_2 <= f
         
         Reforumulation (|| ... ||_2 is the Euclidean norm):
         
-            epsilon*||B + Lambda_i||_2 <= f - A*q - B*d - C*y_i - z*D*q - E*z - Lambda_i*d
+            epsilon*||B + Lambda_i||_2 <= f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d
         
-            epsilon*((B + Lambda_i)*(B + Lambda_i))^(1/2) <= f - A*q - B*d - C*y_i - z*D*q - E*z - Lambda_i*d
+            epsilon*((B + Lambda_i)*(B + Lambda_i))^(1/2) <= f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d
         
         This can be written as two constraints that have to be met at the same time as
         epsilon*||B + Lambda_i|| >= 0 by definition:
         
-            (1) A*q + B*d + C*y_i + z*D*q + E*z + Lambda_i*d <= f
+            (1) A*q + B*d + C*s_i + z*D*q + E*z + Lambda_i*d <= f
         
-            (2) epsilon^2*((B + Lambda_i)*(B + Lambda_i)) <= (f - A*q - B*d - C*y_i - z*D*q - E*z -Lambda_i*d)^2
+            (2) epsilon^2*((B + Lambda_i)*(B + Lambda_i)) <= (f - A*q - B*d - C*s_i - z*D*q - E*z -Lambda_i*d)^2
 
         Let us also introduce a helper costraint with an additional auxiary decision variable called rhs
         
-            (0) rhs = f - A*q - B*d - C*y_i - z*D*q - E*z - Lambda_i*d
+            (0) rhs = f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d
         
         With this, we have 3 constraints
         
-            (C0) rhs = f - A*q - B*d - C*y_i - z*D*q - E*z - Lambda_i*d
+            (C0) rhs = f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d
         
-            (C1) A*q + B*d + C*y_i + z*D*q + E*z + Lambda_i*d <= f
+            (C1) A*q + B*d + C*s_i + z*D*q + E*z + Lambda_i*d <= f
         
-            (C2) epsilon^2*((B + Lambda_i)*(B + Lambda_i)) <= (f - A*q - B*d - C*y_i - z*D*q - E*z - Lambda_i*d)^2
+            (C2) epsilon^2*((B + Lambda_i)*(B + Lambda_i)) <= (f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d)^2
   
         
         """        
@@ -668,8 +668,8 @@ class RobustWeightedSAA:
             # B * d
             gp.quicksum(B[t,s,m]*d[i,s] for s in range(n_periods)) -
 
-            # C * y_i
-            gp.quicksum(C[t,s,m]*y_i[i,s] for s in range(n_periods)) -
+            # C * s_i
+            gp.quicksum(C[t,s,m]*s_i[i,s] for s in range(n_periods)) -
 
             # z * D * q
             gp.quicksum(z[s]*D[t,s,m]*q[s] for s in range(n_periods)) -
@@ -727,8 +727,8 @@ class RobustWeightedSAA:
                     # K * z
                     gp.quicksum(K*z[t] for t in range(n_periods)) + 
 
-                    # y_i
-                    gp.quicksum(y_i[i,t] for t in range(n_periods)) 
+                    # s_i
+                    gp.quicksum(s_i[i,t] for t in range(n_periods)) 
 
 
                 ) for i in range(n_samples)),        
@@ -1045,7 +1045,7 @@ class RobustWeightedSAA2:
         z = self.m.addVars(n_periods, vtype='B', name='z') 
 
         # Auxiary decision variable (for cost of inventory holding or demand backlogging for each t and sample i)
-        y_i = self.m.addVars(n_samples, n_periods, vtype='C', name='y_i') 
+        s_i = self.m.addVars(n_samples, n_periods, vtype='C', name='s_i') 
 
         # Auxiary decision variable (from reformulation of robust constraints)
         Lambda_i = self.m.addVars(n_samples, n_periods, n_periods, n_constraints, 
@@ -1065,7 +1065,7 @@ class RobustWeightedSAA2:
 
         Constraints (for each t=1...tau, i=1...n_samples, m=1...n_constraints):
         
-            A*q + B*d + C*y_i + z*D*q + E*z + Lambda_i*d + epsilon*||B + Lambda_i||_1 <= f
+            A*q + B*d + C*s_i + z*D*q + E*z + Lambda_i*d + epsilon*||B + Lambda_i||_1 <= f
                 
         Using further auxiliary decision variables to capture the l1-norms in the constraints
         
@@ -1108,8 +1108,8 @@ class RobustWeightedSAA2:
             # B * d
             gp.quicksum(B[t,s,m]*d[i,s] for s in range(n_periods)) +
 
-            # C * y_i
-            gp.quicksum(C[t,s,m]*y_i[i,s] for s in range(n_periods)) +
+            # C * s_i
+            gp.quicksum(C[t,s,m]*s_i[i,s] for s in range(n_periods)) +
 
             # z * D * q
             gp.quicksum(z[s]*D[t,s,m]*q[s] for s in range(n_periods)) +
@@ -1147,8 +1147,8 @@ class RobustWeightedSAA2:
                     # K * z
                     gp.quicksum(K*z[t] for t in range(n_periods)) + 
 
-                    # y_i
-                    gp.quicksum(y_i[i,t] for t in range(n_periods)) 
+                    # s_i
+                    gp.quicksum(s_i[i,t] for t in range(n_periods)) 
 
 
                 ) for i in range(n_samples)),        

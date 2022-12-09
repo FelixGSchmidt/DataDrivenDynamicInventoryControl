@@ -1062,6 +1062,11 @@ class RobustWeightedSAA2:
         ## Constraints   
 
         """
+        
+        Note that constraints are modelled in a different way (compared to the paper) in order to
+        include fixed cost ... 
+        
+        # TODO: Use big M (should lead to similar result) or try with if/else conditions...
 
         Constraints (for each t=1...tau, i=1...n_samples, m=1...n_constraints):
         
@@ -1083,7 +1088,13 @@ class RobustWeightedSAA2:
 
             norm_inner[i,t,m] == gp.quicksum(B[t,s,m] + Lambda_i[i,t,s,m]
                                              for s in range(n_periods))
-
+            
+            
+            #### CHECK IF THIS IS CORRECT!!! WE NEED THE SUM OV ABS, NOT THE ABS OF SUMS!
+            
+                ### we need sum( abs(B[t,s,m] + Lambda_i[i,t,s,m]) for s in range(n_periods) ) ???
+            
+            
             for m in range(n_constraints)
             for t in range(n_periods)
             for i in range(n_samples) 

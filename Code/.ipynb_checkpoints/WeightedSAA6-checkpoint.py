@@ -110,9 +110,166 @@ class WeightedSAA:
         
         
         
+
+#     ### Function to create and set up the model
+#     def create(self, d, w, I=0, **kwargs):
+
+#         """
+        
+#         This function initializes and sets up a (tau+1)-periods rolling look-ahead control
+#         problem in MIP formulation with Weighted SAA optimization to find the next
+#         decision to take (ordering quantity q of the current, first period)
+        
+#         Arguments:
+            
+#             d: demand samples i=1...n_samples
+#             w: sample weights i=1...n_samples
+#             I: starting inventory 
+
+#         Further key word arguments (kwargs): passed to set_params() to update (valid) paramaters, e.g., cost parameters K, u, h, b.
+
+
+#         """
+
+#         # Set params
+#         self.set_params(**kwargs)
+     
+#         # Length of rolling look-ahead horizon
+#         n_periods = d.shape[1] if d.ndim>1 else 1
+        
+#         # Number of demand samples
+#         n_samples = d.shape[0]
+        
+#         # Number of model constraints (per demand sample i and period t)
+#         n_constraints = 3
+        
+#         # Cost params
+#         K = self.params['K']
+#         u = self.params['u']
+#         h = self.params['h']
+#         b = self.params['b']
+
+            
+#         ## Constraint coefficients
+        
+           
+#         # Big M
+#         bigM = 10**9
+        
+#         # LHS constraint coefficient matrix A1[t,s,m] with dim = tau x tau x n_constraints where A1[t,s,m]==0 for s > t
+#         A1 = np.array([np.array([(np.array([1,h,-b])
+#                                  if s==t
+#                                  else np.array([0,h,-b]))
+#                                 if s<=t
+#                                 else np.array([0,0,0])
+#                                 for s in range(n_periods)])
+#                       for t in range(n_periods)])
+
+#         # LHS constraint coefficients A2[t,s,m] with dim = tau x tau x n_constraints where A2[t,s,m]==0 for s > t
+#         A2 = np.array([np.array([np.array([0,-h,b])
+#                                 if s<=t
+#                                 else np.array([0,0,0])
+#                                 for s in range(n_periods)])
+#                       for t in range(n_periods)])
+
+#         # LHS constraint coefficients A3[t,s,m] with dim = tau x tau x n_constraints where A3[t,s,m]==0 for s <> t
+#         A3 = np.array([np.array([np.array([bigM,0,0])
+#                                 if s==t
+#                                 else np.array([0,0,0])
+#                                 for s in range(n_periods)])
+#                       for t in range(n_periods)])
+        
+#          # LHS constraint coefficients A4[t,s,m] with dim = tau x tau x n_constraints where A4[t,s,m]==0 for s <> t
+#         A4 = np.array([np.array([np.array([0,-1,-1])
+#                                 if s==t
+#                                 else np.array([0,0,0])
+#                                 for s in range(n_periods)])
+#                       for t in range(n_periods)])
+
+#         # RHS constraint coefficients b[t,m] with dim = tau x n_constraints 
+#         B = np.array([np.array([0,-h*I,b*I])
+#                       for t in range(n_periods)])
+        
+#         ## Create model
+#         self.m = gp.Model()
+
+
+#         # Primary decision variable (ordering quantity for each t)
+#         q = self.m.addVars(n_periods, vtype='I', lb=0, name='q')
+        
+#         # Auxiary decision variable (for fixed cost of ordering for each t)
+#         z = self.m.addVars(n_periods, vtype='B', name='z') 
+
+#         # Auxiary decision variable (for cost of inventory holding or demand backlogging for each t and sample i)
+#         s_i = self.m.addVars(n_samples, n_periods, vtype='C', name='s_i') 
+
+#         ## Constraints   
+
+#         """
+
+#         Constraints (for each m=1...n_constraints, t=1...tau, i=1...n_samples)
+        
+#             A1*q + A2*d + A3*z + A4*s_i <= B 
+        
+#         """       
+
+#         CONS = self.m.addConstrs(
+
+#             # A1 * q
+#             gp.quicksum(A1[t,s,m]*q[s] for s in range(n_periods)) +
+
+#             # A2 * d
+#             gp.quicksum(A2[t,s,m]*d[i,s] for s in range(n_periods)) +
+            
+#             # A3 * z
+#             gp.quicksum(A3[t,s,m]*z[s] for s in range(n_periods)) + 
+
+#             # A4 * s_i
+#             gp.quicksum(A4[t,s,m]*s_i[i,s] for s in range(n_periods)) 
+            
+#             <= B[t,m]
+
+#             for m in range(n_constraints)
+#             for t in range(n_periods)
+#             for i in range(n_samples) 
+#         )
+        
+        
+
+#         ## Objective 
+#         OBJ = self.m.setObjective(
+
+#             # Weighted sum
+#             gp.quicksum(
+
+#                 # i'th weight
+#                 w[i] * (                                         
+
+#                     # u * q
+#                     gp.quicksum(u*q[t] for t in range(n_periods)) + 
+
+#                     # K * z
+#                     gp.quicksum(K*z[t] for t in range(n_periods)) + 
+
+#                     # s_i
+#                     gp.quicksum(s_i[i,t] for t in range(n_periods)) 
+
+
+#                 ) for i in range(n_samples)),        
+
+#             # min
+#             GRB.MINIMIZE
+#         )
+
+#         # Store n periods
+#         self.n_periods = n_periods
+        
+        
+        
+    
         
     ### Function to create and set up the model
-    def create(self, d, w, I=0, q_ub=True, **kwargs):
+    def create(self, d, w, I=0, **kwargs):
 
         """
         
@@ -125,8 +282,7 @@ class WeightedSAA:
             d: demand samples i=1...n_samples
             w: sample weights i=1...n_samples
             I: starting inventory 
-            q_ub: upper bound of ordering quantity, if None does not specify an upper bound
-        
+
         Further key word arguments (kwargs): passed to set_params() to update (valid) paramaters, e.g., cost parameters K, u, h, b.
 
 
@@ -142,7 +298,7 @@ class WeightedSAA:
         n_samples = d.shape[0]
         
         # Number of model constraints (per demand sample i and period t)
-        n_constraints = 5
+        n_constraints = 2
         
         # Cost params
         K = self.params['K']
@@ -150,72 +306,46 @@ class WeightedSAA:
         h = self.params['h']
         b = self.params['b']
 
-         
+            
         ## Constraint coefficients
+
         
-        # LHS constraint coefficient matrix A[t,s,m] with dim = tau x tau x n_constraints where A[t,s,m]==0 for s > t
-        A = np.array([np.array([(np.array([-1,0,1,h,-b])
-                                 if s==t
-                                 else np.array([0,0,0,h,-b]))
+        # LHS constraint coefficient matrix A1[t,s,m] with dim = tau x tau x n_constraints where A1[t,s,m]==0 for s > t
+        A1 = np.array([np.array([np.array([h,-b])
                                 if s<=t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
-
-        # LHS constraint coefficients B[t,s,m] with dim = tau x tau x n_constraints where B[t,s,m]==0 for s > t
-        B = np.array([np.array([np.array([0,0,0,-h,b])
-                                if s<=t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
-
-        # LHS constraint coefficients C[t,s,m] with dim = tau x tau x n_constraints where C[t,s,m]==0 for s <> t
-        C = np.array([np.array([np.array([0,0,0,-1,-1])
-                                if s==t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
-
-        # LHS constraint coefficients D[t,s,m] with dim = tau x tau x n_constraints where D[t,s,m]==0 for s <> t
-        D = np.array([np.array([np.array([0,0,-1,0,0])
-                                if s==t
-                                else np.array([0,0,0,0,0])
+                                else np.array([0,0])
                                 for s in range(n_periods)])
                       for t in range(n_periods)])
         
-        # LHS constraint coefficients E[t,s,m] with dim = tau x tau x n_constraints where E[t,s,m]==0 for s <> t
-        E = np.array([np.array([np.array([0,-1,0,0,0])
+
+        # LHS constraint coefficients A2[t,s,m] with dim = tau x tau x n_constraints where A2[t,s,m]==0 for s > t
+        A2 = np.array([np.array([np.array([-h,b])
+                                if s<=t
+                                else np.array([0,0])
+                                for s in range(n_periods)])
+                      for t in range(n_periods)])
+        
+         # LHS constraint coefficients A3[t,s,m] with dim = tau x tau x n_constraints where A3[t,s,m]==0 for s <> t
+        A3 = np.array([np.array([np.array([-1,-1])
                                 if s==t
-                                else np.array([0,0,0,0,0])
+                                else np.array([0,0])
                                 for s in range(n_periods)])
                       for t in range(n_periods)])
 
-        # RHS constraint coefficients f[t,m] with dim = tau x n_constraints 
-        f = np.array([np.array([0,0,0,-h*I,b*I])
+        # RHS constraint coefficients b[t,m] with dim = tau x n_constraints 
+        B = np.array([np.array([-h*I,b*I])
                       for t in range(n_periods)])
-   
+        
         ## Create model
         self.m = gp.Model()
 
 
         # Primary decision variable (ordering quantity for each t)
-        if type(q_ub) == bool:
-            if q_ub:
-
-                # use default
-                q_ub = math.ceil(np.max(np.max(d, axis=0))*n_periods)
-                q = self.m.addVars(n_periods, vtype='I', lb=0, ub=q_ub, name='q')
-                
-            else:
-
-                q = self.m.addVars(n_periods, vtype='I', lb=0, name='q')
-        else:
-
-            q = self.m.addVars(n_periods, vtype='I', lb=0, ub=q_ub, name='q')
-
+        q = self.m.addVars(n_periods, vtype='I', lb=0, name='q')
+        
         # Auxiary decision variable (for fixed cost of ordering for each t)
-        z = self.m.addVars(n_periods, vtype='B', name='z') 
-
+        z = self.m.addVars(n_periods, vtype='B', name='z')        
+        
         # Auxiary decision variable (for cost of inventory holding or demand backlogging for each t and sample i)
         s_i = self.m.addVars(n_samples, n_periods, vtype='C', name='s_i') 
 
@@ -223,30 +353,31 @@ class WeightedSAA:
 
         """
 
-        Constraints (for each t=1...tau, i=1...n_samples, m=1...n_constraints):
+        Constraints (for each m=1...n_constraints, t=1...tau, i=1...n_samples). For the implementation using Gurobi, we do not
+        use a 'big M' formulation to model fixed cost of ordering. Thus, the mathematical formulation is slightly different than
+        provided in the paper.
         
-            A*q + B*d + C*s_i + z*D*q + E*z <= f 
+            A1*q + A2*d + A3*s_i <= B 
         
-        """ 
-             
-        CONS = self.m.addConstrs(
+        """       
+        
+        # Fixed cost
+        z_cons1 = self.m.addConstrs((z[t] == 0) >> (q[t] == 0) for t in range(n_periods))
+        z_cons2 = self.m.addConstrs((z[t] == 1) >> (q[t] >= 1) for t in range(n_periods))
+         
+        # Remaining constraints
+        cons = self.m.addConstrs(
 
-            # A * q
-            gp.quicksum(A[t,s,m]*q[s] for s in range(n_periods)) +
+            # A1 * q
+            gp.quicksum(A1[t,s,m]*q[s] for s in range(n_periods)) +
 
-            # B * d
-            gp.quicksum(B[t,s,m]*d[i,s] for s in range(n_periods)) +
-
-            # C * s_i
-            gp.quicksum(C[t,s,m]*s_i[i,s] for s in range(n_periods)) +
-
-            # z * D * q
-            gp.quicksum(z[s]*D[t,s,m]*q[s] for s in range(n_periods)) +
+            # A2 * d
+            gp.quicksum(A2[t,s,m]*d[i,s] for s in range(n_periods)) +
             
-            # E * z
-            gp.quicksum(E[t,s,m]*z[s] for s in range(n_periods))
+            # A3 * s_i
+            gp.quicksum(A3[t,s,m]*s_i[i,s] for s in range(n_periods)) 
             
-            <= f[t,m]
+            <= B[t,m]
 
             for m in range(n_constraints)
             for t in range(n_periods)
@@ -256,7 +387,7 @@ class WeightedSAA:
         
 
         ## Objective 
-        OBJ = self.m.setObjective(
+        obj = self.m.setObjective(
 
             # Weighted sum
             gp.quicksum(
@@ -282,10 +413,9 @@ class WeightedSAA:
 
         # Store n periods
         self.n_periods = n_periods
-        
-        
-        
 
+        
+        
     
     #### Function dump model
     def dump(self):
@@ -404,14 +534,9 @@ class WeightedSAA:
     
     
     
-    
-    
-    
-    
-    
-    
-    
-    
+
+
+
 #### Robust Weighted SAA
 class RobustWeightedSAA:
     
@@ -493,462 +618,238 @@ class RobustWeightedSAA:
  
       
     
-    ### Function to create and set up the model
-    def create(self, d, w, I=0, q_ub=True, **kwargs):
+#     ### Function to create and set up the model
+#     def create(self, d, w, I=0, **kwargs):
 
-        """
+#         """
         
-        This function initializes and sets up a (tau+1)-periods rolling look-ahead control
-        problem in MIP formulation with Robust Weighted SAA optimization to find the next
-        decision to take (ordering quantity q of the current, first period)
+#         This function initializes and sets up a (tau+1)-periods rolling look-ahead control
+#         problem in MIP formulation with Robust Weighted SAA optimization to find the next
+#         decision to take (ordering quantity q of the current, first period)
         
-        Arguments:
+#         Arguments:
         
-            d: demand samples i=1...n_samples
-            w: sample weights i=1...n_samples
-            I: starting inventory 
-            q_ub: upper bound of ordering quantity, if None does not specify an upper bound            
+#             d: demand samples i=1...n_samples
+#             w: sample weights i=1...n_samples
+#             I: starting inventory 
+#             q_ub: upper bound of ordering quantity, if None does not specify an upper bound            
             
-        Further key word arguments (kwargs): passed to set_params() to update (valid) paramaters, e.g., cost parameters K, u, h, b, uncertainty set param epsilon
+#         Further key word arguments (kwargs): passed to set_params() to update (valid) paramaters, e.g., cost parameters K, u, h, b, 
+#         uncertainty set param epsilon
 
 
-        """
+#         """
 
-        # Set params
-        self.set_params(**kwargs)
+#         # Set params
+#         self.set_params(**kwargs)
      
-        # Length of rolling look-ahead horizon
-        n_periods = d.shape[1] if d.ndim>1 else 1
+#         # Length of rolling look-ahead horizon
+#         n_periods = d.shape[1] if d.ndim>1 else 1
         
-        # Number of demand samples
-        n_samples = d.shape[0]
+#         # Number of demand samples
+#         n_samples = d.shape[0]
         
-        # Number of model constraints (per demand sample i and period t)
-        n_constraints = 5
+#         # Number of model constraints (per demand sample i and period t)
+#         n_constraints = 5
         
-        # Cost params
-        K = self.params['K']
-        u = self.params['u']
-        h = self.params['h']
-        b = self.params['b']
+#         # Cost params
+#         K = self.params['K']
+#         u = self.params['u']
+#         h = self.params['h']
+#         b = self.params['b']
         
-        # Uncertainty set parameter epsilon
-        epsilon = self.params['epsilon']
+#         # Uncertainty set parameter epsilon
+#         epsilon = self.params['epsilon']
 
         
-        ## Constraint coefficients
+#         ## Constraint coefficients
         
-        # LHS constraint coefficient matrix A[t,s,m] with dim = tau x tau x n_constraints where A[t,s,m]==0 for s > t
-        A = np.array([np.array([(np.array([-1,0,1,h,-b])
-                                 if s==t
-                                 else np.array([0,0,0,h,-b]))
-                                if s<=t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
+#         # LHS constraint coefficient matrix A[t,s,m] with dim = tau x tau x n_constraints where A[t,s,m]==0 for s > t
+#         A = np.array([np.array([(np.array([-1,0,1,h,-b])
+#                                  if s==t
+#                                  else np.array([0,0,0,h,-b]))
+#                                 if s<=t
+#                                 else np.array([0,0,0,0,0])
+#                                 for s in range(n_periods)])
+#                       for t in range(n_periods)])
 
-        # LHS constraint coefficients B[t,s,m] with dim = tau x tau x n_constraints where B[t,s,m]==0 for s > t
-        B = np.array([np.array([np.array([0,0,0,-h,b])
-                                if s<=t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
+#         # LHS constraint coefficients B[t,s,m] with dim = tau x tau x n_constraints where B[t,s,m]==0 for s > t
+#         B = np.array([np.array([np.array([0,0,0,-h,b])
+#                                 if s<=t
+#                                 else np.array([0,0,0,0,0])
+#                                 for s in range(n_periods)])
+#                       for t in range(n_periods)])
 
-        # LHS constraint coefficients C[t,s,m] with dim = tau x tau x n_constraints where C[t,s,m]==0 for s <> t
-        C = np.array([np.array([np.array([0,0,0,-1,-1])
-                                if s==t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
+#         # LHS constraint coefficients C[t,s,m] with dim = tau x tau x n_constraints where C[t,s,m]==0 for s <> t
+#         C = np.array([np.array([np.array([0,0,0,-1,-1])
+#                                 if s==t
+#                                 else np.array([0,0,0,0,0])
+#                                 for s in range(n_periods)])
+#                       for t in range(n_periods)])
 
-        # LHS constraint coefficients D[t,s,m] with dim = tau x tau x n_constraints where D[t,s,m]==0 for s <> t
-        D = np.array([np.array([np.array([0,0,-1,0,0])
-                                if s==t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
+#         # LHS constraint coefficients D[t,s,m] with dim = tau x tau x n_constraints where D[t,s,m]==0 for s <> t
+#         D = np.array([np.array([np.array([0,0,-1,0,0])
+#                                 if s==t
+#                                 else np.array([0,0,0,0,0])
+#                                 for s in range(n_periods)])
+#                       for t in range(n_periods)])
         
-        # LHS constraint coefficients E[t,s,m] with dim = tau x tau x n_constraints where E[t,s,m]==0 for s <> t
-        E = np.array([np.array([np.array([0,-1,0,0,0])
-                                if s==t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
+#         # LHS constraint coefficients E[t,s,m] with dim = tau x tau x n_constraints where E[t,s,m]==0 for s <> t
+#         E = np.array([np.array([np.array([0,-1,0,0,0])
+#                                 if s==t
+#                                 else np.array([0,0,0,0,0])
+#                                 for s in range(n_periods)])
+#                       for t in range(n_periods)])
 
-        # RHS constraint coefficients f[t,m] with dim = tau x n_constraints 
-        f = np.array([np.array([0,0,0,-h*I,b*I])
-                      for t in range(n_periods)])
+#         # RHS constraint coefficients f[t,m] with dim = tau x n_constraints 
+#         f = np.array([np.array([0,0,0,-h*I,b*I])
+#                       for t in range(n_periods)])
    
 
 
-        ## Create model
-        self.m = gp.Model()
+#         ## Create model
+#         self.m = gp.Model()
         
-        # Primary decision variable (ordering quantity for each t)
-        if type(q_ub) == bool:
-            if q_ub:
+#         # Primary decision variable (ordering quantity for each t)
+#         q = self.m.addVars(n_periods, vtype='I', lb=0, name='q')
 
-                # use default
-                q_ub = math.ceil((np.max(np.max(d, axis=0)) + epsilon)*n_periods)
-                q = self.m.addVars(n_periods, vtype='I', lb=0, ub=q_ub, name='q')
+#         # Auxiary decision variable (for fixed cost of ordering for each t)
+#         z = self.m.addVars(n_periods, vtype='B', name='z') 
+
+#         # Auxiary decision variable (for cost of inventory holding or demand backlogging for each t and sample i)
+#         s_i = self.m.addVars(n_samples, n_periods, vtype='C', name='s_i') 
+
+#         # Auxiary decision variable (from reformulation of robust constraints)
+#         Lambda_i = self.m.addVars(n_samples, n_periods, n_periods, n_constraints, 
+#                                   vtype='C', lb=0, name='Lambda_i')
+        
+#         # Auxiary decision variable for norms
+#         norm_inner = self.m.addVars(n_samples, n_periods, n_constraints, vtype='C', name='norm_inner')
+
+#         # Auxiary decision variable for norms
+#         norm = self.m.addVars(n_samples, n_periods, n_constraints, vtype='C', lb=0, name='norm')
+
+
+
+#         ## Constraints   
+
+#         """
+        
+#         Note that constraints are modelled in a different way (compared to the paper) in order to
+#         include fixed cost ... 
+        
+#         # TODO: Use big M (should lead to similar result) or try with if/else conditions...
+
+#         Constraints (for each t=1...tau, i=1...n_samples, m=1...n_constraints):
+        
+#             A*q + B*d + C*s_i + z*D*q + E*z + Lambda_i*d + epsilon*||B + Lambda_i||_1 <= f
                 
-            else:
-
-                q = self.m.addVars(n_periods, vtype='I', lb=0, name='q')
-        else:
-
-            q = self.m.addVars(n_periods, vtype='I', lb=0, ub=q_ub, name='q')
-            
-        # Auxiary decision variable (for fixed cost of ordering for each t)
-        z = self.m.addVars(n_periods, vtype='B', name='z') 
-
-        # Auxiary decision variable (for cost of inventory holding or demand backlogging for each t and sample i)
-        s_i = self.m.addVars(n_samples, n_periods, vtype='C', name='s_i') 
-
-        # Auxiary decision variable (from reformulation of robust constraints)
-        Lambda_i = self.m.addVars(n_samples, n_periods, n_periods, n_constraints, 
-                                  vtype='C', lb=0, name='Lambda_i')
+#         Using further auxiliary decision variables to capture the l1-norms in the constraints
         
-        # Helper for multiplication
-        rhs = self.m.addVars(n_samples, n_periods, n_constraints, vtype='C', name='rhs')
-    
-       
-
-        ## Constraints   
-
-        """
-
-        Constraints (for each t=1...tau, i=1...n_samples, m=1...n_constraints):
+#             (C0) norm_inner == B + Lambda_i
         
-            A*q + B*d + C*s_i + z*D*q + E*z + Lambda_i*d + epsilon*||B + Lambda_i||_2 <= f
+#             (C1) norm == abs(norm_inner)
         
-        Reforumulation (|| ... ||_2 is the Euclidean norm):
-        
-            epsilon*||B + Lambda_i||_2 <= f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d
-        
-            epsilon*((B + Lambda_i)*(B + Lambda_i))^(1/2) <= f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d
-        
-        This can be written as two constraints that have to be met at the same time as
-        epsilon*||B + Lambda_i|| >= 0 by definition:
-        
-            (1) A*q + B*d + C*s_i + z*D*q + E*z + Lambda_i*d <= f
-        
-            (2) epsilon^2*((B + Lambda_i)*(B + Lambda_i)) <= (f - A*q - B*d - C*s_i - z*D*q - E*z -Lambda_i*d)^2
-
-        Let us also introduce a helper costraint with an additional auxiary decision variable called rhs
-        
-            (0) rhs = f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d
-        
-        With this, we have 3 constraints
-        
-            (C0) rhs = f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d
-        
-            (C1) A*q + B*d + C*s_i + z*D*q + E*z + Lambda_i*d <= f
-        
-            (C2) epsilon^2*((B + Lambda_i)*(B + Lambda_i)) <= (f - A*q - B*d - C*s_i - z*D*q - E*z - Lambda_i*d)^2
+#             (C2) xxx
   
         
-        """        
+#         """        
         
-    
-        # C0
-        C0 = self.m.addConstrs(
+#         # Constraint to set inner part of the norm
+#         CONS_norm_inner = self.m.addConstrs(
 
-            
-            rhs[i,t,m]
-            
-            == 
-            
-            # f
-            f[t,m] -
-            
-            # A * q
-            gp.quicksum(A[t,s,m]*q[s] for s in range(n_periods)) -
-
-            # B * d
-            gp.quicksum(B[t,s,m]*d[i,s] for s in range(n_periods)) -
-
-            # C * s_i
-            gp.quicksum(C[t,s,m]*s_i[i,s] for s in range(n_periods)) -
-
-            # z * D * q
-            gp.quicksum(z[s]*D[t,s,m]*q[s] for s in range(n_periods)) -
-            
-            # E * z
-            gp.quicksum(E[t,s,m]*z[s] for s in range(n_periods)) -
-            
-            # Lambda_i * d
-            gp.quicksum(Lambda_i[i,t,s,m]*d[i,s] for s in range(n_periods))
-
-            for m in range(n_constraints)
-            for t in range(n_periods)
-            for i in range(n_samples) 
-        )
-        
-        
-        
-        # C1 
-        C1 = self.m.addConstrs(
-
-            0 <= rhs[i,t,m]
-
-            for m in range(n_constraints)
-            for t in range(n_periods)
-            for i in range(n_samples) 
-        )
-        
-        
-        # C2
-        C2 = self.m.addConstrs(
-            
-            epsilon**2 * gp.quicksum((B[t,s,m] + Lambda_i[i,t,s,m])*(B[t,s,m] + Lambda_i[i,t,s,m])
-                                     for s in range(n_periods))
-            
-            <= rhs[i,t,m] * rhs[i,t,m]
-            
-            for m in range(n_constraints)
-            for t in range(n_periods)
-            for i in range(n_samples) 
-        )
-        
-
-        ## Objective 
-        OBJ = self.m.setObjective(
-
-            # Weighted sum
-            gp.quicksum(
-
-                # i'th weight
-                w[i] * (                                         
-
-                    # u * q
-                    gp.quicksum(u*q[t] for t in range(n_periods)) + 
-
-                    # K * z
-                    gp.quicksum(K*z[t] for t in range(n_periods)) + 
-
-                    # s_i
-                    gp.quicksum(s_i[i,t] for t in range(n_periods)) 
-
-
-                ) for i in range(n_samples)),        
-
-            # min
-            GRB.MINIMIZE
-        )
-
-        # Store n periods
-        self.n_periods = n_periods
-        
-    
-    #### Function to dump model
-    def dump(self):
-        
-        self.m = None
-
-        
-    #### Function to optimize model
-    def optimize(self, **kwargs):
-        
-        
-        """
-        
-        ...
-        
-        Arguments: None
-            
-        Further key word arguments (kwargs): passed to update Gurobi meta params (other kwargs are ignored)
-
-        Returns:
-        
-            q_hat: ...
-            status: ...
-            solutions: ...
-            gap: ...
-            
-        """
-
-        
-        # Update gurobi meta params if provided
-        gurobi_meta_params = {
-            
-            'LogToConsole': kwargs.get('LogToConsole', self.params['LogToConsole']),
-            'Threads': kwargs.get('Threads', self.params['Threads']),
-            'NonConvex': kwargs.get('NonConvex', self.params['NonConvex']),
-            'PSDTol': kwargs.get('PSDTol', self.params['PSDTol']),
-            'MIPGap': kwargs.get('MIPGap', self.params['MIPGap']),
-            'NumericFocus': kwargs.get('NumericFocus', self.params['NumericFocus']),
-            'obj_improvement': kwargs.get('obj_improvement', self.params['obj_improvement']),
-            'obj_timeout_sec': kwargs.get('obj_timeout_sec', self.params['obj_timeout_sec']),
-            'obj_timeout_max_sec': kwargs.get('obj_timeout_max_sec', self.params['obj_timeout_max_sec'])
-        }
-        
-        self.set_params(**gurobi_meta_params)           
-            
-        # Set Gurobi meta params
-        self.m.setParam('LogToConsole', self.params['LogToConsole'])
-        self.m.setParam('Threads', self.params['Threads'])
-        self.m.setParam('NonConvex', self.params['NonConvex'])
-        self.m.setParam('PSDTol', self.params['PSDTol'])
-        self.m.setParam('MIPGap', self.params['MIPGap'])
-        self.m.setParam('NumericFocus', self.params['NumericFocus'])  
- 
-        # Set MIP start
-        for var in self.m.getVars():
-            if 'q' in var.VarName:
-                for period in range(n_periods):
-                    var[period].Start = 0
-
-        ## Callback on solver time and objective improvement
-        def cb(model, where):
-            
- 
-            # MIP node
-            if where == GRB.Callback.MIPNODE:
-
-                # Get current incumbent objective
-                objbst = model.cbGet(GRB.Callback.MIPNODE_OBJBST)   
-                
-                # Get current soluction count
-                solcnt = model.cbGet(GRB.Callback.MIPNODE_SOLCNT)
-                
-                # If objective improved sufficiently
-                if abs(objbst - model._cur_obj) > abs(model._cur_obj * self.params['obj_improvement']):
-
-                    # Update incumbent and time
-                    model._cur_obj = objbst
-                    model._time = time.time()
-                 
-                # Terminate if objective has not improved sufficiently in 'obj_timeout_sec' seconds ...
-                if time.time() - model._time > self.params['obj_timeout_sec']:        
-                    
-                    # ... and at least one soluction has been found
-                    if solcnt > 0:
-                        model.terminate()
-                        
-                    # ... or max sec have passed
-                    elif time.time() - model._time > self.params['obj_timeout_max_sec']:
-                        model.terminate()
+#             norm_inner[i,t,m] == gp.quicksum(B[t,s,m] + Lambda_i[i,t,s,m]
+#                                              for s in range(n_periods))
             
             
-        # Last updated objective and time
-        self.m._cur_obj = float('inf')
-        self.m._time = time.time() 
+#             #### CHECK IF THIS IS CORRECT!!! WE NEED THE SUM OV ABS, NOT THE ABS OF SUMS!
+            
+#                 ### we need sum( abs(B[t,s,m] + Lambda_i[i,t,s,m]) for s in range(n_periods) ) ???
+            
+            
+#             for m in range(n_constraints)
+#             for t in range(n_periods)
+#             for i in range(n_samples) 
+#         )
 
-        # Optimize
-        self.m.optimize(callback=cb)      
-        
-        ## Solution
-        if self.m.SolCount > 0:
-        
-            # Objective value
-            v_opt = self.m.objVal
+#         # Constraint to get actual value of the norm
+#         CONS_norm =  self.m.addConstrs(
 
-            # Ordering quantities
-            q_hat = [var.xn for var in self.m.getVars() if 'q' in var.VarName]
-        
-        else:
-            
-            q_hat = [np.nan]
-            
-        
-        # Solution meta data
-        status = self.m.status
-        solutions = self.m.SolCount
-        gap = self.m.MIPGap
-        
-                    
-        # return decisions
-        return q_hat, status, solutions, gap
-    
-    
-    
-    
+#             norm[i,t,m] == gp.abs_(norm_inner[i,t,m])
 
+#             for m in range(n_constraints)
+#             for t in range(n_periods)
+#             for i in range(n_samples) 
+#         )
 
-#### Robust Weighted SAA
-class RobustWeightedSAA2:
-    
-    """
-    
-    Description ...
-    
-    """
-        
-    ### Init
-    def __init__(self, K=100, u=0.5, h=1, b=9, epsilon=0, LogToConsole=0, Threads=1, NonConvex=2, PSDTol=0, MIPGap=1e-3, 
-                 NumericFocus=0, obj_improvement=1e-3, obj_timeout_sec=3*60, obj_timeout_max_sec=10*60, **kwargs):
+#         # Actual constraints
+#         CONS = self.m.addConstrs(
 
-        """
-        
-        ...
-        
-        Arguments:
-        
-            K (default=100): Fixed cost of ordering
-            u (default=0.5): Per unit cost of ordering
-            h (default=1): Per unit cost of inventory holding
-            b (default=9): Per unit cost of demand backlogging
-            
-            epsilon (default=0): Uncertainty set parameter
+#             # A * q
+#             gp.quicksum(A[t,s,m]*q[s] for s in range(n_periods)) +
 
-            LogToConsole (default=0): ...
-            Threads (default=1): ...
-            NonConvex (default=2): ...
-            PSDTol (default=0): ...
-            MIPGap (default=1e-3): ...
-            NumericFocus (default=0): ...
-            
-            obj_improvement (default=1e-3): ...
-            obj_timeout_sec (default=3*60): ...
-            obj_timeout_max_sec (default=10*60): ...
-            
-        Further key word arguments (kwargs): ignored
+#             # B * d
+#             gp.quicksum(B[t,s,m]*d[i,s] for s in range(n_periods)) +
 
-            
-        """
+#             # C * s_i
+#             gp.quicksum(C[t,s,m]*s_i[i,s] for s in range(n_periods)) +
 
-        # Set params
-        self.params = {
-            
-            'K': K,
-            'u': u,
-            'h': h,
-            'b': b,
-            
-            'epsilon': epsilon,
-            
-            'LogToConsole': LogToConsole,
-            'Threads': Threads,
-            'NonConvex': NonConvex,
-            'PSDTol': PSDTol,
-            'MIPGap': MIPGap,
-            'NumericFocus': NumericFocus,
-            
-            'obj_improvement': obj_improvement,
-            'obj_timeout_sec': obj_timeout_sec,
-            'obj_timeout_max_sec': obj_timeout_max_sec
-        
-        }
+#             # z * D * q
+#             gp.quicksum(z[s]*D[t,s,m]*q[s] for s in range(n_periods)) +
+
+#             # E * z
+#             gp.quicksum(E[t,s,m]*z[s] for s in range(n_periods)) +
+
+#             # Lambda_i * d
+#             gp.quicksum(Lambda_i[i,t,s,m]*d[i,s] for s in range(n_periods)) +
+
+#             # epsilon*||B + Lambda_i||_1
+#             epsilon * norm[i,t,m]
+
+#             <= f[t,m]
+
+#             for m in range(n_constraints)
+#             for t in range(n_periods)
+#             for i in range(n_samples) 
+#         )
+
         
 
-    ### Function to set params
-    def set_params(self, **kwargs):
+#         ## Objective 
+#         OBJ = self.m.setObjective(
+
+#             # Weighted sum
+#             gp.quicksum(
+
+#                 # i'th weight
+#                 w[i] * (                                         
+
+#                     # u * q
+#                     gp.quicksum(u*q[t] for t in range(n_periods)) + 
+
+#                     # K * z
+#                     gp.quicksum(K*z[t] for t in range(n_periods)) + 
+
+#                     # s_i
+#                     gp.quicksum(s_i[i,t] for t in range(n_periods)) 
+
+
+#                 ) for i in range(n_samples)),        
+
+#             # min
+#             GRB.MINIMIZE
+#         )
+
+#         # Store n periods
+#         self.n_periods = n_periods
         
-        # Update all items that match an existing key
-        self.params.update((k, kwargs[k]) for k in set(kwargs).intersection(self.params))
-            
         
-    ### Function to get params
-    def get_params(self):
         
-        return self.params
         
- 
-      
+
     
     ### Function to create and set up the model
-    def create(self, d, w, I=0, q_ub=True, **kwargs):
+    def create(self, d, w, I=0, **kwargs):
 
         """
         
@@ -960,10 +861,10 @@ class RobustWeightedSAA2:
         
             d: demand samples i=1...n_samples
             w: sample weights i=1...n_samples
-            I: starting inventory 
-            q_ub: upper bound of ordering quantity, if None does not specify an upper bound            
+            I: starting inventory          
             
-        Further key word arguments (kwargs): passed to set_params() to update (valid) paramaters, e.g., cost parameters K, u, h, b, uncertainty set param epsilon
+        Further key word arguments (kwargs): passed to set_params() to update (valid) paramaters, e.g., cost parameters K, u, h, b, 
+        uncertainty set param epsilon
 
 
         """
@@ -978,7 +879,7 @@ class RobustWeightedSAA2:
         n_samples = d.shape[0]
         
         # Number of model constraints (per demand sample i and period t)
-        n_constraints = 5
+        n_constraints = 2
         
         # Cost params
         K = self.params['K']
@@ -992,45 +893,29 @@ class RobustWeightedSAA2:
         
         ## Constraint coefficients
         
-        # LHS constraint coefficient matrix A[t,s,m] with dim = tau x tau x n_constraints where A[t,s,m]==0 for s > t
-        A = np.array([np.array([(np.array([-1,0,1,h,-b])
-                                 if s==t
-                                 else np.array([0,0,0,h,-b]))
+        # LHS constraint coefficient matrix A1[t,s,m] with dim = tau x tau x n_constraints where A1[t,s,m]==0 for s > t
+        A1 = np.array([np.array([np.array([h,-b])
                                 if s<=t
-                                else np.array([0,0,0,0,0])
+                                else np.array([0,0])
                                 for s in range(n_periods)])
                       for t in range(n_periods)])
 
-        # LHS constraint coefficients B[t,s,m] with dim = tau x tau x n_constraints where B[t,s,m]==0 for s > t
-        B = np.array([np.array([np.array([0,0,0,-h,b])
+        # LHS constraint coefficients A2[t,s,m] with dim = tau x tau x n_constraints where A2[t,s,m]==0 for s > t
+        A2 = np.array([np.array([np.array([-h,b])
                                 if s<=t
-                                else np.array([0,0,0,0,0])
+                                else np.array([0,0])
                                 for s in range(n_periods)])
                       for t in range(n_periods)])
 
-        # LHS constraint coefficients C[t,s,m] with dim = tau x tau x n_constraints where C[t,s,m]==0 for s <> t
-        C = np.array([np.array([np.array([0,0,0,-1,-1])
+        # LHS constraint coefficients A3[t,s,m] with dim = tau x tau x n_constraints where A3[t,s,m]==0 for s != t
+        A3 = np.array([np.array([np.array([-1,-1])
                                 if s==t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
-
-        # LHS constraint coefficients D[t,s,m] with dim = tau x tau x n_constraints where D[t,s,m]==0 for s <> t
-        D = np.array([np.array([np.array([0,0,-1,0,0])
-                                if s==t
-                                else np.array([0,0,0,0,0])
-                                for s in range(n_periods)])
-                      for t in range(n_periods)])
-        
-        # LHS constraint coefficients E[t,s,m] with dim = tau x tau x n_constraints where E[t,s,m]==0 for s <> t
-        E = np.array([np.array([np.array([0,-1,0,0,0])
-                                if s==t
-                                else np.array([0,0,0,0,0])
+                                else np.array([0,0])
                                 for s in range(n_periods)])
                       for t in range(n_periods)])
 
         # RHS constraint coefficients f[t,m] with dim = tau x n_constraints 
-        f = np.array([np.array([0,0,0,-h*I,b*I])
+        B = np.array([np.array([-h*I,b*I])
                       for t in range(n_periods)])
    
 
@@ -1052,7 +937,8 @@ class RobustWeightedSAA2:
                                   vtype='C', lb=0, name='Lambda_i')
         
         # Auxiary decision variable for norms
-        norm_inner = self.m.addVars(n_samples, n_periods, n_constraints, vtype='C', name='norm_inner')
+        norm_inner = self.m.addVars(n_samples, n_periods, n_periods, n_constraints, vtype='C', name='norm_inner')
+        norm_inner_abs = self.m.addVars(n_samples, n_periods, n_periods, n_constraints, vtype='C', name='norm_inner')
 
         # Auxiary decision variable for norms
         norm = self.m.addVars(n_samples, n_periods, n_constraints, vtype='C', lb=0, name='norm')
@@ -1062,37 +948,49 @@ class RobustWeightedSAA2:
         ## Constraints   
 
         """
-
-        Constraints (for each t=1...tau, i=1...n_samples, m=1...n_constraints):
         
-            A*q + B*d + C*s_i + z*D*q + E*z + Lambda_i*d + epsilon*||B + Lambda_i||_1 <= f
+        Constraints (for each m=1...n_constraints, t=1...tau, i=1...n_samples). For the implementation using Gurobi, we do not
+        use a 'big M' formulation to model fixed cost of ordering. Thus, the mathematical formulation is slightly different than
+        provided in the paper.
+  
+            A1*q + A2*d + A3*s_i + Lambda_i*d + epsilon*||A2 + Lambda_i||_1 <= B
                 
-        Using further auxiliary decision variables to capture the l1-norms in the constraints
-        
-            (C0) norm_inner == B + Lambda_i
-        
-            (C1) norm == abs(norm_inner)
-        
-            (C2) xxx
+        To calculate the l1 norm ||.|| we use further helper constraints.
   
         
         """        
         
+        # Fixed cost
+        z_cons1 = self.m.addConstrs((z[t] == 0) >> (q[t] == 0) for t in range(n_periods))
+        z_cons2 = self.m.addConstrs((z[t] == 1) >> (q[t] >= 1) for t in range(n_periods))
+        
         # Constraint to set inner part of the norm
-        CONS_norm_inner = self.m.addConstrs(
+        norm_inner_cons = self.m.addConstrs(
 
-            norm_inner[i,t,m] == gp.quicksum(B[t,s,m] + Lambda_i[i,t,s,m]
-                                             for s in range(n_periods))
-
+            norm_inner[i,t,s,m] == A2[t,s,m] + Lambda_i[i,t,s,m] 
+            
+            for s in range(n_periods)
             for m in range(n_constraints)
             for t in range(n_periods)
             for i in range(n_samples) 
         )
 
-        # Constraint to get actual value of the norm
-        CONS_norm =  self.m.addConstrs(
+         # Constraint to set inner part of the norm as absolute values
+        norm_inner_abs_cons = self.m.addConstrs(
 
-            norm[i,t,m] == gp.abs_(norm_inner[i,t,m])
+            norm_inner_abs[i,t,s,m] == gp.abs_(norm_inner[i,t,s,m])
+            
+            for s in range(n_periods)
+            for m in range(n_constraints)
+            for t in range(n_periods)
+            for i in range(n_samples) 
+        )
+
+        
+        # Constraint to get actual value of the norm
+        norm_cons =  self.m.addConstrs(
+
+            norm[i,t,m] == gp.quicksum(norm_inner_abs[i,t,s,m] for s in range(n_periods))
 
             for m in range(n_constraints)
             for t in range(n_periods)
@@ -1100,30 +998,24 @@ class RobustWeightedSAA2:
         )
 
         # Actual constraints
-        CONS = self.m.addConstrs(
+        cons = self.m.addConstrs(
 
-            # A * q
-            gp.quicksum(A[t,s,m]*q[s] for s in range(n_periods)) +
+            # A1 * q
+            gp.quicksum(A1[t,s,m]*q[s] for s in range(n_periods)) +
 
-            # B * d
-            gp.quicksum(B[t,s,m]*d[i,s] for s in range(n_periods)) +
+            # A2 * d
+            gp.quicksum(A2[t,s,m]*d[i,s] for s in range(n_periods)) +
 
-            # C * s_i
-            gp.quicksum(C[t,s,m]*s_i[i,s] for s in range(n_periods)) +
-
-            # z * D * q
-            gp.quicksum(z[s]*D[t,s,m]*q[s] for s in range(n_periods)) +
-
-            # E * z
-            gp.quicksum(E[t,s,m]*z[s] for s in range(n_periods)) +
+            # A3 * s_i
+            gp.quicksum(A3[t,s,m]*s_i[i,s] for s in range(n_periods)) +
 
             # Lambda_i * d
             gp.quicksum(Lambda_i[i,t,s,m]*d[i,s] for s in range(n_periods)) +
 
-            # epsilon*||B + Lambda_i||_1
+            # epsilon*||A2 + Lambda_i||_1
             epsilon * norm[i,t,m]
 
-            <= f[t,m]
+            <= B[t,m]
 
             for m in range(n_constraints)
             for t in range(n_periods)
@@ -1133,7 +1025,7 @@ class RobustWeightedSAA2:
         
 
         ## Objective 
-        OBJ = self.m.setObjective(
+        obj = self.m.setObjective(
 
             # Weighted sum
             gp.quicksum(
@@ -1159,6 +1051,10 @@ class RobustWeightedSAA2:
 
         # Store n periods
         self.n_periods = n_periods
+        
+        
+        
+        
         
     
     #### Function to dump model
@@ -1283,7 +1179,9 @@ class RobustWeightedSAA2:
     
     
     
-
+  
+    
+    
     
     
     
@@ -1324,7 +1222,7 @@ class RollingHorizonOptimization:
     
         
     ### Function to run experiment over planing horizon t=1...T
-    def run(self, wsaamodel, samples, actuals, weights=None, epsilons=None, I=0, q_ub=True, **kwargs):
+    def run(self, wsaamodel, samples, actuals, weights=None, epsilons=None, I=0, **kwargs):
 
         """
 
@@ -1446,7 +1344,7 @@ class RollingHorizonOptimization:
             else:
 
                 # Create model 
-                wsaamodel.create(d, w, I, q_ub, **params)
+                wsaamodel.create(d, w, I, **params)
                 
                 # Optimize and get decisions
                 q_hat, status, solutions, gap = wsaamodel.optimize()    
@@ -1467,7 +1365,7 @@ class RollingHorizonOptimization:
                     wsaamodel_default = WeightedSAA(**current_model_params)
                     
                     # Create model 
-                    wsaamodel_default.create(d, w, I, q_ub, **params)
+                    wsaamodel_default.create(d, w, I, **params)
 
                     # Optimize and get decisions
                     q_hat, status, solutions, gap = wsaamodel_default.optimize()    
@@ -1539,7 +1437,7 @@ class RollingHorizonOptimization:
     
     
     ### Function to run ex-post (clairvoyant) experiment over planing horizon t=1...T
-    def run_expost(self, wsaamodel, actuals, I=0, q_ub=True, **kwargs):
+    def run_expost(self, wsaamodel, actuals, I=0, **kwargs):
 
         """
         ...
@@ -1564,7 +1462,7 @@ class RollingHorizonOptimization:
         w = np.array([1])
         
         # Create model 
-        wsaamodel.create(d, w, I, q_ub, **kwargs)
+        wsaamodel.create(d, w, I, **kwargs)
 
         # Optimize and get decisions
         q_hat, status, solutions, gap = wsaamodel.optimize()    
