@@ -488,76 +488,6 @@ class PreProcessing:
     
     
     
-#     ### Function to preprocess global data
-#     def preprocess_global_data(self, X, y, ids_products, ids_timePeriods, timePeriodsTestStart, tau, features, features_to_scale,
-#                                features_to_scale_with, X_scaler=MaxQFeatureScaler(), y_Scaler=MaxQFeatureScaler(), **kwargs):
-        
-#         """
-#         ...
-        
-#         """
-    
-#         # Select training horizons for feature scaling (we allow for <= as we start with lag 1 for all features)
-#         train_features = (ids_timePeriods <= timePeriodsTestStart)
-
-#         # Fit feature scalers per product (on training horizon)
-#         X_scalers = {}
-#         for product in np.unique(ids_products):
-#             scaler = copy.deepcopy(X_scaler, **kwargs)
-#             X_scalers[product] = scaler.fit(X[train_features & (ids_products == product)], features, features_to_scale, features_to_scale_with)
-
-#         # Select training horizons for demand scaling
-#         train_demands = (ids_timePeriods < timePeriodsTestStart)
-        
-#         # Fit demand scalers per product (on training horizon)
-#         y_scalers = {}
-#         for product in np.unique(ids_products):
-#             scaler = copy.deepcopy(y_Scaler)
-#             y_scalers[product] = scaler.fit(y[train_demands & (ids_products == product)], tau=tau, **kwargs)
-
-#         # Reshape demand time series to multi-period 
-#         data = pd.DataFrame({'product': ids_products, 'timePeriod': ids_timePeriods, 'y': y.flatten()})
-#         y_mp = {}
-#         for tau_ in range(tau+1):
-#             y_mp['y'+str(tau_)] = data.groupby(['product']).shift(-tau_)['y']
-#         y = np.array(pd.DataFrame(y_mp))
-
-#         # Select train / test horizons considering multi-period demands given tau
-#         train, test = ids_timePeriods < timePeriodsTestStart - tau, ids_timePeriods == timePeriodsTestStart
-
-#         # Select train / test data
-#         X_train, X_test = X[train], X[test]
-#         y_train, y_test = y[train], y[test]
-#         ids_products_train, ids_products_test = ids_products[train], ids_products[test]
-#         ids_timePeriods_train, ids_timePeriods_test = ids_timePeriods[train], ids_timePeriods[test]
-
-#         # Rehsape training data aligned to periods of the rolling look ahead horizon
-#         X_train = self.reshape_data(X_train, ids_timePeriods_train, tau)
-#         y_train = self.reshape_data(y_train, ids_timePeriods_train, tau)
-#         ids_products_train = self.reshape_data(ids_products_train, ids_timePeriods_train, tau)
-#         ids_timePeriods_train = self.reshape_data(ids_timePeriods_train, ids_timePeriods_train, tau)
-
-#         # Flatten 1-d arrays
-#         ids_products_train, ids_products_test = ids_products_train.flatten(), ids_products_test.flatten()
-#         ids_timePeriods_train, ids_timePeriods_test = ids_timePeriods_train.flatten(), ids_timePeriods_test.flatten()
-#         if tau == 0:
-#             y_train, y_test = y_train.flatten(), y_test.flatten()
-
-#         # Data to return
-#         data = (
-#             X_train, X_test, 
-#             y_train, y_test, 
-#             ids_products_train, ids_products_test, 
-#             ids_timePeriods_train, ids_timePeriods_test, 
-#             X_scalers, y_scalers
-#         )
-
-#         return data
-
-    
-    
-    
-    
     
     
     
@@ -725,59 +655,6 @@ class PreProcessing:
         
         # Return
         return data
-
-    
-    
-    
-    
-    
-    
-#     ### Function to preprocess local data
-#     def preprocess_local_data(self, X, y, ids_products, ids_timePeriods, timePeriodsTestStart, tau, **kwargs):
-        
-#         """
-#         ...
-        
-#         """
-    
-#         # Reshape demand time series to multi-period 
-#         data = pd.DataFrame({'product': ids_products, 'timePeriod': ids_timePeriods, 'y': y.flatten()})
-#         y_mp = {}
-#         for tau_ in range(tau+1):
-#             y_mp['y'+str(tau_)] = data.groupby(['product']).shift(-tau_)['y']
-#         y = np.array(pd.DataFrame(y_mp))
-
-#         # Select train / test horizons considering multi-period demands given tau
-#         train, test = ids_timePeriods < timePeriodsTestStart - tau, ids_timePeriods == timePeriodsTestStart
-
-#         # Select train / test data
-#         X_train, X_test = X[train], X[test]
-#         y_train, y_test = y[train], y[test]
-#         ids_products_train, ids_products_test = ids_products[train], ids_products[test]
-#         ids_timePeriods_train, ids_timePeriods_test = ids_timePeriods[train], ids_timePeriods[test]
-
-#         # Rehsape training data aligned to periods of the rolling look ahead horizon
-#         X_train = self.reshape_data(X_train, ids_timePeriods_train, tau)
-#         y_train = self.reshape_data(y_train, ids_timePeriods_train, tau)
-#         ids_products_train = self.reshape_data(ids_products_train, ids_timePeriods_train, tau)
-#         ids_timePeriods_train = self.reshape_data(ids_timePeriods_train, ids_timePeriods_train, tau)
-
-#         # Flatten 1-d arrays
-#         ids_products_train, ids_products_test = ids_products_train.flatten(), ids_products_test.flatten()
-#         ids_timePeriods_train, ids_timePeriods_test = ids_timePeriods_train.flatten(), ids_timePeriods_test.flatten()
-#         if tau == 0:
-#             y_train, y_test = y_train.flatten(), y_test.flatten()
-
-#         # Data to return
-#         data = (
-#             X_train, X_test, 
-#             y_train, y_test, 
-#             ids_products_train, ids_products_test, 
-#             ids_timePeriods_train, ids_timePeriods_test
-#         )
-
-#         return data
-
 
     
     
